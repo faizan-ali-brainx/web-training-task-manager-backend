@@ -1,0 +1,119 @@
+pr_compliances:
+    - title: 'Proper Title and Description'
+      compliance_label: true
+      weight: 5.00
+      objective: 'PR title must be self-explanatory describing what the pull request does. Description should be detailed with what was changed, why and how it was changed'
+      success_criteria: 'PR has a clear, self-explanatory title and comprehensive description explaining what, why, and how changes were made'
+      failure_criteria: 'Missing or unclear PR title/description, or description lacks details about what, why, and how changes were made'
+
+    - title: 'Single Responsibility'
+      compliance_label: true
+      weight: 5.00
+      objective: 'PR should target a single feature only. Multiple features in a single PR increase complexity and reduce code quality'
+      success_criteria: 'PR contains changes for a single, cohesive feature'
+      failure_criteria: 'PR contains multiple unrelated features or concerns that should be separated'
+
+    - title: 'Readme File Updated'
+      compliance_label: true
+      weight: 4.00
+      objective: 'README file should be updated with the new feature documentation. Document new modules, services, controllers, DTOs, or configuration changes'
+      success_criteria: 'README file has been updated to document the new feature, modules, services, endpoints, or configuration changes'
+      failure_criteria: 'New features, modules, services, or endpoints added without corresponding README documentation updates'
+
+    - title: 'Environment Variables Configuration'
+      compliance_label: true
+      weight: 5.00
+      objective: 'Every configuration value should be in environment or config files. No code changes should be required when configuration changes. Use @nestjs/config for configuration management'
+      success_criteria: 'All configuration values are externalized to environment variables or config files using @nestjs/config'
+      failure_criteria: 'Hardcoded configuration values present in code that should be in environment/config files, or not using @nestjs/config properly'
+
+    - title: 'Module Architecture Compliance'
+      compliance_label: true
+      weight: 4.00
+      objective: 'Follow NestJS module structure (Module, Controller, Service pattern). Proper separation of concerns between modules. Use dependency injection correctly with @Injectable() decorator'
+      success_criteria: 'Code follows NestJS module architecture with proper separation of concerns, correct dependency injection, and proper use of @Injectable() decorator'
+      failure_criteria: 'Improper module structure, missing dependency injection, incorrect use of decorators, or poor separation of concerns'
+
+    - title: 'Shy Code - Function Length'
+      compliance_label: true
+      weight: 5.00
+      objective: 'Code should be loosely coupled. Maximum 50 lines are allowed in a function (as per ESLint config). Functions should have single responsibility'
+      success_criteria: 'All functions are 50 lines or less and demonstrate loose coupling with single responsibility'
+      failure_criteria: 'Functions exceed 50 lines or show tight coupling with other code, or functions have multiple responsibilities'
+
+    - title: 'SOLID Principle'
+      compliance_label: true
+      weight: 5.00
+      objective: 'Each service, controller, or module should handle only one feature. If there is any new feature, move it to a new service or module. Follow dependency inversion principle with dependency injection'
+      success_criteria: 'Services, controllers, and modules follow single responsibility principle with one clear purpose, and proper dependency injection is used'
+      failure_criteria: 'Services, controllers, or modules handle multiple features or concerns that should be separated, or improper dependency injection'
+
+    - title: 'DRY Principle'
+      compliance_label: true
+      weight: 5.00
+      objective: "Don't repeat yourself. Write code efficiently so that you can reuse your own logic. Extract common functionality into shared services or utilities"
+      success_criteria: 'No code duplication; reusable logic is properly extracted into shared services, utilities, or base classes'
+      failure_criteria: 'Repeated code blocks that should be extracted into reusable functions, services, or utilities'
+
+    - title: 'Naming Conventions - NestJS and TypeScript'
+      compliance_label: true
+      weight: 5.00
+      objective: 'Follow NestJS and TypeScript naming conventions. Classes: PascalCase, Files: kebab-case, Variables: camelCase, Constants: UPPER_SNAKE_CASE. Names should be self-explanatory'
+      success_criteria: 'All classes, files, variables, and constants follow NestJS and TypeScript naming conventions and are self-explanatory'
+      failure_criteria: 'Inconsistent or non-standard naming that deviates from NestJS/TypeScript conventions or unclear naming'
+
+    - title: 'Comments and Documentation'
+      compliance_label: true
+      weight: 4.00
+      objective: 'Use TODO comments for remaining tasks in a feature. Write JSDoc comments before each class, method, and function. Document DTOs, interfaces, and complex logic'
+      success_criteria: 'Classes, methods, and functions have descriptive JSDoc comments explaining their purpose, and TODO comments mark incomplete tasks'
+      failure_criteria: 'Missing JSDoc documentation comments, incomplete features without TODO markers, or undocumented complex logic'
+
+    - title: 'Unnecessary Code and Imports'
+      compliance_label: true
+      weight: 4.00
+      objective: 'Remove unused code and commented code before PR. Remove any test console.log statements. Remove unused imports (ESLint should catch these)'
+      success_criteria: 'No unused imports, commented-out code, or test console.log statements present'
+      failure_criteria: 'Presence of unused imports, commented-out code blocks, or test console.log statements'
+
+    - title: 'Proper Error Handling'
+      compliance_label: true
+      weight: 4.00
+      objective: 'Use NestJS built-in exceptions (NotFoundException, BadRequestException, etc.). Proper exception filters for global error handling. Complete error messages for user feedback. Handle async operations with proper try-catch blocks'
+      success_criteria: 'All error cases use appropriate NestJS exceptions, proper exception filters are implemented, complete error messages provided, and async operations have proper error handling'
+      failure_criteria: 'Missing or inappropriate error handling, use of generic Error instead of NestJS exceptions, incomplete error messages, unhandled async operations, or missing exception filters'
+
+    - title: 'DTOs and Validation'
+      compliance_label: true
+      weight: 5.00
+      objective: 'All endpoints should use DTOs for request/response validation. Use class-validator decorators (@IsEmail, @IsString, @MinLength, etc.). Use class-transformer for data transformation. Validate all inputs at the controller level'
+      success_criteria: 'All endpoints use DTOs with proper class-validator decorators, validation is enabled globally, and all inputs are validated at controller level'
+      failure_criteria: 'Endpoints missing DTOs, missing validation decorators, validation not enabled globally, or inputs not validated'
+
+    - title: 'Guards and Interceptors'
+      compliance_label: true
+      weight: 5.00
+      objective: 'Use guards for authentication and authorization. Use interceptors for cross-cutting concerns (logging, transformation). Proper use of @UseGuards() and @UseInterceptors() decorators. Custom guards should extend NestJS guard interfaces'
+      success_criteria: 'Authentication/authorization guards are properly implemented, interceptors used for cross-cutting concerns, decorators used correctly, and custom guards extend proper NestJS interfaces'
+      failure_criteria: 'Missing guards for protected routes, missing interceptors where needed, incorrect use of decorators, or custom guards not extending proper interfaces'
+
+    - title: 'Database Patterns'
+      compliance_label: true
+      weight: 5.00
+      objective: 'Use Mongoose schemas with proper validation. Implement pre-save hooks for password hashing and other transformations. Use proper query methods (findOne, findById, etc.). Handle database errors appropriately'
+      success_criteria: 'Mongoose schemas properly defined with validation, pre-save hooks implemented correctly, appropriate query methods used, and database errors handled properly'
+      failure_criteria: 'Improper schema definitions, missing pre-save hooks where needed, incorrect query methods, or unhandled database errors'
+
+    - title: 'Security Best Practices'
+      compliance_label: true
+      weight: 5.00
+      objective: 'Never expose sensitive data (passwords, tokens) in responses. Use environment variables for secrets (JWT_SECRET, DB_PASSWORD, etc.). Implement proper authentication and authorization. Use bcrypt for password hashing. Validate and sanitize all user inputs'
+      success_criteria: 'Sensitive data not exposed in responses, secrets stored in environment variables, proper authentication/authorization implemented, passwords hashed with bcrypt, and all inputs validated'
+      failure_criteria: 'Sensitive data exposed in responses, hardcoded secrets, missing authentication/authorization, passwords not hashed, or inputs not validated'
+
+    - title: 'Testing'
+      compliance_label: true
+      weight: 5.00
+      objective: 'Write unit tests for services. Write integration tests for controllers. Test error cases and edge cases. Use proper test naming conventions (*.spec.ts)'
+      success_criteria: 'Unit tests written for services, integration tests for controllers, error cases and edge cases tested, and proper test file naming conventions used'
+      failure_criteria: 'Missing unit tests for services, missing integration tests for controllers, error cases not tested, or incorrect test file naming'

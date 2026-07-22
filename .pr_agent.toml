@@ -1,0 +1,116 @@
+# Important: This file contains all available configuration options.
+# Do not copy this entire file to your repository configuration.
+# Your repository configuration should only include options you wish to override from the defaults.
+#
+# Use this page: 'https://qodo-merge-docs.qodo.ai/ai_search/' to ask questions about the configuration options.
+
+[config]
+use_global_settings_file=false
+add_repo_metadata_file_list=["API-REFERENCE.md", "README.md"]
+model = "gpt-4.1-mini"
+
+[pr_reviewer] # /review #
+extra_instructions = ""
+
+[pr_description] # /describe #
+generate_ai_title=true
+final_update_message = true
+enable_pr_diagram=false # adds a section with a diagram of the PR changes
+inline_file_summary='table' # false, true, 'table'
+
+[pr_custom_prompt] # /custom_prompt #
+prompt = """\
+The code review should focus on the following NestJS code standards:
+
+1. Proper Title and Description (5%):
+   - PR title must be self-explanatory and describe what the pull request does
+   - Description should be detailed with what was changed, why and how it was changed
+
+2. Single Responsibility (5%):
+   - PR should target a single feature only
+   - Multiple features in a single PR increase complexity and reduce code quality
+
+3. Readme File (4%):
+   - README file should be updated with the new feature documentation
+   - Document new modules, services, controllers, DTOs, or configuration changes
+
+4. Environment Variables (5%):
+   - Every configuration value should be in environment or config files
+   - No code changes should be required when configuration changes
+   - Use @nestjs/config for configuration management
+
+5. Module Architecture (4%):
+   - Follow NestJS module structure (Module, Controller, Service pattern)
+   - Proper separation of concerns between modules
+   - Use dependency injection correctly with @Injectable() decorator
+
+6. Shy Code - Function Length (5%):
+   - Code should be loosely coupled with other code
+   - Maximum 50 lines are allowed in a function (as per ESLint config)
+   - Functions should have single responsibility
+
+7. SOLID Principle (5%):
+   - Each service, controller, or module should handle only one feature
+   - If there is any new feature, move it to a new service or module
+   - Follow dependency inversion principle with dependency injection
+
+8. DRY Principle (5%):
+   - Don't repeat yourself
+   - Write code efficiently so that you can reuse your own logic
+   - Extract common functionality into shared services or utilities
+
+9. Naming Conventions (5%):
+   - Follow NestJS and TypeScript naming conventions
+   - Classes: PascalCase (e.g., UserService, AuthController)
+   - Files: kebab-case for modules (e.g., user.service.ts, auth.controller.ts)
+   - Variables and methods: camelCase
+   - Constants: UPPER_SNAKE_CASE
+   - Names should be self-explanatory
+
+10. Comments and Documentation (4%):
+    - Use TODO comments for remaining tasks in a feature
+    - Write JSDoc comments before each class, method, and function
+    - Document DTOs, interfaces, and complex logic
+
+11. Unnecessary Code and Imports (4%):
+    - Remove unused code and commented code before PR
+    - Remove any test console.log statements
+    - Remove unused imports (ESLint should catch these)
+
+12. Proper Error Handling (4%):
+    - Use NestJS built-in exceptions (NotFoundException, BadRequestException, etc.)
+    - Proper exception filters for global error handling
+    - Complete error messages for user feedback
+    - Handle async operations with proper try-catch blocks
+
+13. DTOs and Validation (5%):
+    - All endpoints should use DTOs for request/response validation
+    - Use class-validator decorators (@IsEmail, @IsString, @MinLength, etc.)
+    - Use class-transformer for data transformation
+    - Validate all inputs at the controller level
+
+14. Guards and Interceptors (5%):
+    - Use guards for authentication and authorization
+    - Use interceptors for cross-cutting concerns (logging, transformation)
+    - Proper use of @UseGuards() and @UseInterceptors() decorators
+    - Custom guards should extend NestJS guard interfaces
+
+15. Database Patterns (5%):
+    - Use Mongoose schemas with proper validation
+    - Implement pre-save hooks for password hashing and other transformations
+    - Use proper query methods (findOne, findById, etc.)
+    - Handle database errors appropriately
+
+16. Security Best Practices (5%):
+    - Never expose sensitive data (passwords, tokens) in responses
+    - Use environment variables for secrets (JWT_SECRET, DB_PASSWORD, etc.)
+    - Implement proper authentication and authorization
+    - Use bcrypt for password hashing
+    - Validate and sanitize all user inputs
+
+17. Testing (5%):
+    - Write unit tests for services
+    - Write integration tests for controllers
+    - Test error cases and edge cases
+    - Use proper test naming conventions (*.spec.ts)
+"""
