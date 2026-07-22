@@ -29,6 +29,47 @@ See [docs/BACKEND_DEVELOPMENT_PLAN.md](docs/BACKEND_DEVELOPMENT_PLAN.md) for the
 
 Before writing code or opening a PR, check [docs/PR_STANDARDS.md](docs/PR_STANDARDS.md) — a condensed, one-file reference for this repo's code standards and PR review checklist.
 
+## Environment Variables
+
+Copy `.env.example` to `.env` and fill in real values locally (never commit `.env`):
+
+| Variable | Purpose |
+|---|---|
+| `NODE_ENV` | `development` locally — gates whether `/auth/signup` and `/auth/forgot-password` include the raw token in their response (see docs plan §5.1) |
+| `PORT` | HTTP port (default `3000`) |
+| `FRONTEND_URL` | Allowed CORS origin, e.g. `http://localhost:5173` |
+| `DATABASE_URL` | Postgres connection string |
+| `JWT_SECRET` / `JWT_EXPIRES_IN` | JWT signing secret and access-token lifetime |
+| `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` | Nodemailer SMTP config — leave blank locally to skip real email sending (send failures are logged, not thrown) |
+
+See [docs/BACKEND_DEVELOPMENT_PLAN.md](docs/BACKEND_DEVELOPMENT_PLAN.md) (§3, "Local development database") for how to set up a local Postgres instance from scratch.
+
+## API Endpoints
+
+All routes are served under `/api`. Interactive docs (Swagger, with a "Authorize" button for
+Bearer tokens) are available at `/api-docs` once the server is running.
+
+**Auth** (`/api/auth`)
+
+| Method | Path | Auth | Notes |
+|---|---|---|---|
+| POST | `/signup` | — | 409 if email taken |
+| POST | `/verify-email` | — | 400 if token invalid/expired |
+| POST | `/login` | — | 401 bad credentials, 403 unverified email |
+| POST | `/logout` | 🔒 | No-op placeholder (JWTs are stateless) |
+| GET | `/me` | 🔒 | Current user's profile |
+| POST | `/forgot-password` | — | 404 if no account with that email |
+| POST | `/reset-password` | — | 400 if token invalid/expired |
+
+**Todos** (`/api/todos`) — all routes 🔒, scoped to the authenticated user
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/` | List the current user's todos |
+| POST | `/` | Create a todo (`{ title }`) |
+| PATCH | `/:id` | Partial update (`{ title?, completed? }`) — 404 missing, 403 not owner |
+| DELETE | `/:id` | 204 on success — 404 missing, 403 not owner |
+
 ## Project setup
 
 ```bash

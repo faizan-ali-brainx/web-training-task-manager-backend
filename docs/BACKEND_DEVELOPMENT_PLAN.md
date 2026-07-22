@@ -1,7 +1,8 @@
 # Backend Development Plan — Task Manager API
 
-**Status:** Planning complete, implementation not started. Repo is a fresh NestJS scaffold
-(`nest new`) with dependencies installed but no feature modules written yet.
+**Status:** **Part 1 (Auth + Todo APIs & database) is complete** and integrated end-to-end with
+the frontend — see §3 for full verification details and §2.7 for the frontend-integration status.
+Part 2 (Collaboration, §6) and Part 3 (Deadlines & Notifications, §7) are planned but not started.
 
 **How to use this document:** This is meant to be a **self-sufficient brief** — everything an
 engineer or AI agent needs to build this backend correctly, without access to any prior chat
@@ -19,10 +20,10 @@ Express.js/NestJS (Day 5). The end goal is a full-stack **Task Manager** app, bu
 repos:
 
 - **Frontend** — `faizan-ali-brainx/web-training-todo-app` (branch `frontend`), a React 19 + Vite +
-  TypeScript + Redux Toolkit app. **Already built and working**, currently running against an
-  in-memory mock API. See §2 below for everything about it.
+  TypeScript + Redux Toolkit app. **Built and now integrated with the real backend** for both auth
+  and todos (Part 1) — no more mock API for either feature. See §2 below for everything about it.
 - **Backend** (this repo) — `faizan-ali-brainx/web-training-task-manager-backend`, a NestJS API.
-  **Not yet implemented** — this document is the plan for building it.
+  **Part 1 implemented and verified**; Parts 2-3 are planned but not started.
 
 The backend work is split into **three parts**, to be built and PR'd in order:
 
@@ -51,17 +52,27 @@ React Hook Form + Zod, Axios.
 ### 2.2 How the frontend talks to an API
 
 Every feature's data layer goes through exactly one file per feature — `authApi.ts` and
-`todosApi.ts` — which currently branch on a `USE_MOCK_API` flag:
+`todosApi.ts` — each switched independently via its own flag (split this way so Auth could go live
+before Todos was ready; both are now `false`, i.e. both live against this backend):
 
 ```typescript
 // src/api/config.ts (frontend)
-export const USE_MOCK_API = import.meta.env.VITE_USE_MOCK_API !== 'false';
+export const USE_MOCK_AUTH_API = import.meta.env.VITE_USE_MOCK_AUTH_API !== 'false';
+export const USE_MOCK_TODOS_API = import.meta.env.VITE_USE_MOCK_TODOS_API !== 'false';
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:3000/api';
 export const ACCESS_TOKEN_STORAGE_KEY = 'react-sample-app:accessToken';
 ```
 
 ```typescript
-// src/api/client.ts (frontend) — the axios instance the real backend will be called through
+// src/api/client.ts (frontend) — the axios instance the real backend is called through
+export class ApiError extends Error {
+  status: number;
+  constructor(status: number, message: string) {
+    super(message);
+    this.status = status;
+  }
+}
+
 export const apiClient = axios.create({ baseURL: API_BASE_URL });
 
 apiClient.interceptors.request.use((config) => {
@@ -74,10 +85,16 @@ apiClient.interceptors.response.use(
   (res) => res,
   (error) => {
     if (error.response?.status === 401) localStorage.removeItem(ACCESS_TOKEN_STORAGE_KEY);
-    return Promise.reject(error);
+    const status = error.response?.status ?? 500;
+    return Promise.reject(new ApiError(status, extractMessage(error.response?.data)));
   }
 );
 ```
+
+`ApiError` normalizes any backend error response (including NestJS's `class-validator` array-of-
+strings `message` field) into the same `{status, message}` shape the frontend's original mock API
+already used — so every page's `catch (err) { setFormError((err as Error).message) }` handles both
+identically, with no special-casing needed.
 
 **Implications for the backend:**
 - Default expected base URL: `http://localhost:3000/api` in dev — so this API must set a global
@@ -114,10 +131,9 @@ export interface AuthSession {
 }
 ```
 
-Every endpoint's JSON response should be shaped to match these exactly (after axios unwraps
-`res.data`) — the frontend's real `authApi.ts`/`todosApi.ts` branches (currently
-`notImplemented()`) will be filled in against whatever this backend returns, so keep response
-shapes close to these types to minimize that follow-up work.
+Every endpoint's JSON response is shaped to match these exactly (after axios unwraps `res.data`) —
+`authApi.ts`/`todosApi.ts`'s real branches are now implemented against exactly this backend (see
+§2.7), so any future endpoint changes should preserve these shapes to avoid frontend rework.
 
 ### 2.4 Frontend form validation schemas (what the client already validates before sending)
 
@@ -162,10 +178,12 @@ verified against this mock, so matching it closely means minimal frontend rework
   belongs to a different user**. Partial update (only provided fields change).
 - `remove(token, id)` — same `404`/`403` ownership check, then deletes.
 
-**Important nuance already solved on the frontend**: the mock's tokens are the frontend's
-in-browser fake session; email verification/password reset links are currently **shown directly on
-screen** (`AuthCheckEmailNotice` component) instead of emailed, since there's no real backend yet.
-Part 1 changes this — see §5.1.
+**Important nuance already solved on the frontend**: the mock's tokens were the frontend's
+in-browser fake session; email verification/password reset links were shown directly on screen
+(`AuthCheckEmailNotice` component) instead of emailed, since there was no real backend yet. Part 1
+changed this — see §5.1's dev/prod split — and `AuthCheckEmailNotice`'s `linkTo` prop is now
+optional so the on-screen shortcut only appears when the backend actually includes a token (i.e.
+outside production), never in production where the emailed link is the only path.
 
 ### 2.6 Frontend folder structure (for context — nothing here needs to change for Part 1)
 
@@ -181,17 +199,35 @@ src/
 └── types/          # Shared cross-feature types (User, Todo, AuthSession)
 ```
 
-### 2.7 Frontend follow-up work NOT covered by this backend plan
+### 2.7 Frontend integration status
 
-Building this API does not automatically wire up the frontend. A separate, later task must:
-1. Implement the real branches in `authApi.ts`/`todosApi.ts` (replacing `notImplemented()`) to call
-   `apiClient` against the endpoints in §5–§6 below.
-2. Set `VITE_USE_MOCK_API=false` and `VITE_API_BASE_URL` in the frontend's `.env`.
-3. Adjust `SignupPage`/`ForgotPasswordPage`'s on-screen "click to verify/reset" UI once real email
-   delivery is live (see §5.1's dev/prod behavior split).
-4. For Part 2/3: add collaboration UI (invite button, collaborator list, permission-aware editing)
-   and a notifications UI (bell icon, list, real-time updates via `socket.io-client`) — entirely new
-   frontend work, out of scope for this document.
+**Done, for Part 1:**
+1. Real branches implemented in `authApi.ts`/`todosApi.ts`, calling `apiClient` against the
+   endpoints in §5.3.
+2. `.env` set to `VITE_USE_MOCK_AUTH_API=false`, `VITE_USE_MOCK_TODOS_API=false`,
+   `VITE_API_BASE_URL=http://localhost:3000/api`.
+3. `SignupPage`/`ForgotPasswordPage`/`AuthCheckEmailNotice` updated for the optional
+   `verificationToken`/`resetToken` fields (§5.1's dev/prod split) — the on-screen shortcut link
+   only renders when a token is actually present in the response.
+
+**Bug found and fixed during this integration**: `SignupPage` was sending the raw React Hook Form
+object (including `confirmPassword`) straight to `POST /auth/signup`. The mock API never minded,
+but the real backend's `forbidNonWhitelisted` validation correctly rejected it with a 400. Fixed by
+building a clean `{ name, email, password }` payload before dispatching. Worth remembering as a
+general pattern: **any form field that exists only for client-side validation (confirm-password,
+terms-checkbox, etc.) must be stripped before it reaches a DTO with `forbidNonWhitelisted: true`.**
+
+Verified end-to-end in the browser against the real backend: signup → verify-email (dev-mode
+on-screen link) → login → session persists across a page reload (`/auth/me` rehydration) → add /
+toggle / rename / delete a todo, with the completed-toggle **surviving a full page reload**
+(proof it's really in Postgres) → logout → forgot-password → reset-password → login with the new
+password. Zero console errors throughout.
+
+**Still pending (Part 2/3 frontend work, not covered by this backend plan):**
+- Collaboration UI: invite button, collaborator list, permission-aware editing (hide title-edit/
+  delete for non-owners) — needed once §6 ships.
+- Notifications UI: bell icon, notification list, real-time updates via `socket.io-client`,
+  deadline picker on the todo form — needed once §7 ships.
 
 ---
 
@@ -203,6 +239,7 @@ Building this API does not automatically wire up the frontend. A separate, later
 | Language | TypeScript, strict, no `any` |
 | Database | PostgreSQL |
 | ORM | **Prisma** (`@prisma/client`, `prisma`) — not TypeORM |
+| DB driver adapter | `@prisma/adapter-pg` + `pg` — **required** by Prisma 7's client runtime, even with the classic `prisma-client-js` generator (see note below) |
 | Auth | JWT via `@nestjs/jwt` + Passport (`@nestjs/passport`, `passport`, `passport-jwt`) |
 | Password hashing | `bcrypt` |
 | Validation | DTOs + `class-validator` + `class-transformer`, global `ValidationPipe` |
@@ -214,22 +251,79 @@ Building this API does not automatically wire up the frontend. A separate, later
 | Testing | Jest (already scaffolded) — unit tests per service, integration tests per controller |
 
 All of the above are **already installed** in this repo's `package.json`. Nothing needs
-`npm install`ing to start Part 1 except running `npx prisma init` to scaffold the Prisma project.
+`npm install`ing to start Part 1 except running `npx prisma init` to scaffold the Prisma project,
+and `npm install @prisma/adapter-pg pg` (+ `-D @types/pg`) for the driver adapter below.
+
+> **Prisma 7 breaking change**: unlike Prisma 5/6, `PrismaClient` in v7 always requires an explicit
+> driver adapter — `new PrismaClient()` with just a `DATABASE_URL` throws
+> `PrismaClientInitializationError` at startup, even with `generator client { provider =
+> "prisma-client-js" }` (the classic generator). `PrismaService` must construct it as:
+> ```typescript
+> import { PrismaPg } from '@prisma/adapter-pg';
+> super({ adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }) });
+> ```
+> This is unrelated to which generator you pick — both the classic `prisma-client-js` and the newer
+> ESM-only `prisma-client` generator need an adapter in v7. (The `prisma-client` generator is also
+> ESM-only — its output uses `import.meta.url`, which breaks under this project's CommonJS/nodenext
+> TS config. Stick with `prisma-client-js`.)
+
+### Local development database
+
+This project's dev Postgres does **not** use the machine's default `postgresql@15` Homebrew
+service — that had a stale, unrelated data directory on the machine this was first built on. A
+dedicated instance was set up instead, isolated from any other Postgres data:
+
+```bash
+brew install postgresql@15   # if not already installed
+export PATH="/opt/homebrew/opt/postgresql@15/bin:$PATH"
+
+# One-time setup: fresh, project-only data directory + role
+initdb -D /opt/homebrew/var/task-manager-postgres-data -U postgres --locale=en_US.UTF-8 -E UTF8
+
+# Start it (port 5433, to avoid colliding with any other local Postgres on 5432)
+export LC_ALL="en_US.UTF-8" OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES  # works around a macOS-only
+  # "postmaster became multithreaded during startup" failure
+pg_ctl -D /opt/homebrew/var/task-manager-postgres-data -o "-p 5433" -l /opt/homebrew/var/task-manager-postgres-data/server.log start
+
+createdb -p 5433 -U postgres task_manager_dev
+```
+
+`DATABASE_URL` in `.env` accordingly: `postgresql://postgres@localhost:5433/task_manager_dev?schema=public`.
+
+To stop it later: `pg_ctl -D /opt/homebrew/var/task-manager-postgres-data stop`. This does not
+start automatically on login/reboot (started manually via `pg_ctl`, not `brew services`) — rerun
+the `pg_ctl ... start` command above after a reboot.
 
 ### Current repo state
 
 ```
 backend/
 ├── src/
-│   ├── main.ts            # default Nest bootstrap, port from process.env.PORT ?? 3000
-│   ├── app.module.ts       # empty root module (imports: [])
-│   ├── app.controller.ts   # default "Hello World" controller — DELETE this in Part 1
-│   └── app.service.ts      # default service — DELETE this in Part 1
+│   ├── main.ts             # global prefix 'api', ValidationPipe, CORS, Swagger, exception filter
+│   ├── app.module.ts        # ConfigModule + PrismaModule + UsersModule + MailModule + AuthModule
+│   ├── prisma/               # PrismaModule/PrismaService (driver-adapter wired, see above)
+│   ├── users/                # UsersService + user.mapper (toPublicUser)
+│   ├── mail/                 # MailService (Nodemailer, catches send failures)
+│   ├── auth/                 # AuthModule — DTOs, JwtStrategy, JwtAuthGuard, CurrentUser, service, controller
+│   ├── todos/                 # TodosModule — DTOs, todo.mapper (ownerId -> userId), service, controller
+│   └── common/filters/       # AllExceptionsFilter
+├── prisma/schema.prisma      # Part 1 schema applied via one migration (`init`)
 ├── docs/
-│   └── PR_STANDARDS.md     # code-quality rules — read before every PR
+│   ├── PR_STANDARDS.md       # code-quality rules — read before every PR
+│   └── BACKEND_DEVELOPMENT_PLAN.md  # this file
 ├── best_practices.md, pr_compliance_checklist.yaml, .pr_agent.toml, .github/  # PR-review tooling
-└── (Prisma not yet initialized — no prisma/ directory yet)
+└── .env.example              # NODE_ENV, PORT, FRONTEND_URL, DATABASE_URL, JWT_*, SMTP_*
 ```
+
+**Part 1 status: complete.** Prisma schema, Auth module, and Todos module are all built and
+manually verified against the real Postgres database via curl: signup → duplicate 409 →
+unverified-login 403 → verify-email → login 200 → `/me` 200/401 → forgot/reset password → login
+with new password → todos CRUD (create 201, list/update 200, delete 204) → cross-user 403 on
+someone else's todo → 404 on a missing todo → DTO validation (400) — all confirmed. The frontend
+is also fully integrated and verified end-to-end in the browser against this backend — see §2.7
+for the integration details, including one real bug it surfaced and fixed.
+
+**Next up: PRs for both repos (frontend + backend), then Part 2 — Collaboration** (see §6).
 
 ---
 
@@ -401,22 +495,28 @@ All under `/api`. Endpoints marked 🔒 require `@UseGuards(AuthGuard('jwt'))`.
 
 ### 5.4 Definition of Done — Part 1
 
-- [ ] `npx prisma init`, schema above written, `npx prisma migrate dev --name init` run
-- [ ] `PrismaModule`/`PrismaService` (global module, connects on `onModuleInit`)
-- [ ] `UsersModule` with lookup/create/update helpers used by `AuthModule`
-- [ ] `AuthModule`: signup, verify-email, login, logout, me, forgot-password, reset-password — all
+- [x] `npx prisma init`, schema above written, `npx prisma migrate dev --name init` run
+- [x] `PrismaModule`/`PrismaService` (global module, connects on `onModuleInit`, driver-adapter wired)
+- [x] `UsersModule` with lookup/create/update helpers used by `AuthModule`
+- [x] `AuthModule`: signup, verify-email, login, logout, me, forgot-password, reset-password — all
       DTO-validated, all errors as NestJS exceptions, `JwtStrategy` + `AuthGuard('jwt')` wired
-- [ ] `MailModule`/`MailService`: `sendVerificationEmail`, `sendPasswordResetEmail` via Nodemailer
-- [ ] `TodosModule`: full CRUD, ownership-enforced, all routes JWT-guarded
-- [ ] Global `ValidationPipe` (`whitelist`, `forbidNonWhitelisted`, `transform`), global exception
+- [x] `MailModule`/`MailService`: `sendVerificationEmail`, `sendPasswordResetEmail` via Nodemailer
+      (send failures are logged, not thrown — see §5.1)
+- [x] `TodosModule`: full CRUD, ownership-enforced, all routes JWT-guarded
+- [x] Global `ValidationPipe` (`whitelist`, `forbidNonWhitelisted`, `transform`), global exception
       filter, `app.enableCors(...)`, `app.setGlobalPrefix('api')`
-- [ ] Swagger wired at `/api-docs`, every endpoint documented (`@ApiTags`, `@ApiOperation`,
-      `@ApiResponse`, `@ApiBearerAuth`)
-- [ ] Unit tests for `AuthService`/`TodosService`, integration tests for both controllers
-- [ ] `.env.example` added; `README.md` documents endpoints + env vars (PR_STANDARDS.md rule 3)
-- [ ] Every function ≤ 50 lines, JSDoc above every class/method, no `console.log`, no `any`
-- [ ] Manually verified against Postman/Swagger: signup → verify → login → CRUD → ownership 403
-      on another user's todo
+- [x] Swagger wired at `/api-docs`, every auth + todos endpoint documented (`@ApiTags`,
+      `@ApiOperation`, `@ApiBearerAuth`)
+- [x] Unit tests for `AuthService`/`TodosService`, integration tests for `AuthController`/
+      `TodosController` (18 passing)
+- [x] `.env.example` added; `README.md` updated with the full endpoints list
+- [x] Every function ≤ 50 lines, JSDoc above every class/method, no `console.log`, no `any`
+- [x] Manually verified end-to-end with curl against the real Postgres database: signup → 409 on
+      duplicate → 403 on unverified login → verify-email → login 200 → `/me` 200/401 →
+      forgot/reset-password → login with new password → DTO validation (400) and
+      `forbidNonWhitelisted` (400) → todos create/list/update/delete (201/200/200/204) →
+      cross-user 403 → missing-todo 404 → empty-title 400. Also verified end-to-end in the
+      browser against the integrated frontend (see §2.7 — that integration is now done).
 
 ---
 

@@ -1,0 +1,52 @@
+// Part 1 schema — Auth + Todos. See docs/BACKEND_DEVELOPMENT_PLAN.md §5.2 for the full plan
+// (Part 2 adds TodoCollaborator, Part 3 adds deadline/reminderSentAt + Notification).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id            Int      @id @default(autoincrement())
+  name          String
+  email         String   @unique
+  passwordHash  String
+  emailVerified Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  todos              Todo[]                   @relation("OwnedTodos")
+  verificationTokens EmailVerificationToken[]
+  resetTokens        PasswordResetToken[]
+}
+
+model EmailVerificationToken {
+  id        Int      @id @default(autoincrement())
+  token     String   @unique
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+model PasswordResetToken {
+  id        Int      @id @default(autoincrement())
+  token     String   @unique
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+model Todo {
+  id        Int      @id @default(autoincrement())
+  title     String
+  completed Boolean  @default(false)
+  ownerId   Int
+  owner     User     @relation("OwnedTodos", fields: [ownerId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
