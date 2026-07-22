@@ -7,3 +7,9 @@ coverage
 .DS_Store
 
 /generated/prisma
+
+# Prisma-generated AI-tooling skill docs (not project code)
+.agents/
+.windsurf/
+.claude/skills/
+skills-lock.json
