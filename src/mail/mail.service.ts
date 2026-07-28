@@ -5,7 +5,7 @@ import { ConfigService } from '@nestjs/config';
 import * as handlebars from 'handlebars';
 import * as nodemailer from 'nodemailer';
 
-type TemplateName = 'verify-email' | 'reset-password';
+type TemplateName = 'verify-email' | 'reset-password' | 'collaborator-invite';
 
 /**
  * Sends transactional emails via SMTP (Nodemailer), rendered from Handlebars
@@ -57,24 +57,54 @@ export class MailService {
    */
   async sendPasswordResetEmail(toEmail: string, token: string): Promise<void> {
     const url = `${this.frontendUrl}/reset-password?token=${token}`;
-    await this.send(
-      toEmail,
-      'Reset your password',
-      `<p>Click <a href="${url}">here</a> to reset your password.</p>`,
-    );
+    const html = this.render('reset-password', { url });
+    await this.send(toEmail, 'Reset your password', html);
   }
 
+  /**
+   * Notifies a user they've been added as a collaborator on a todo.
+   * @param toEmail - the recipient's email address
+   * @param todoTitle - the title of the todo they were invited to
+   */
   async sendCollaboratorInvite(
     toEmail: string,
     todoTitle: string,
   ): Promise<void> {
-    await this.send(
-      toEmail,
-      'You were invited to collaborate on a task',
-      `<p>You've been added as a collaborator on "${todoTitle}". Log in to view it.</p>`,
-    );
+    const html = this.render('collaborator-invite', { todoTitle });
+    await this.send(toEmail, 'You were invited to collaborate on a task', html);
   }
 
+  /**
+   * Renders a named template with the given context.
+   * @param name - the template's filename, without extension
+   * @param context - the values to interpolate into the template
+   * @returns the rendered HTML
+   */
+  private render(name: TemplateName, context: Record<string, string>): string {
+    return this.compile(name)(context);
+  }
+
+  /**
+   * Compiles (and caches) a Handlebars template from `mail/templates/`.
+   * @param name - the template's filename, without extension
+   * @returns the compiled template function
+   */
+  private compile(name: TemplateName): HandlebarsTemplateDelegate {
+    const cached = this.compiledTemplates.get(name);
+    if (cached) return cached;
+
+    const path = join(__dirname, 'templates', `${name}.hbs`);
+    const compiled = handlebars.compile(readFileSync(path, 'utf-8'));
+    this.compiledTemplates.set(name, compiled);
+    return compiled;
+  }
+
+  /**
+   * Sends an email, logging (not throwing) on failure.
+   * @param to - the recipient's email address
+   * @param subject - the email subject line
+   * @param html - the rendered HTML body
+   */
   private async send(to: string, subject: string, html: string): Promise<void> {
     try {
       await this.transporter.sendMail({
