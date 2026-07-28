@@ -1,5 +1,6 @@
-// Part 1 schema — Auth + Todos. See docs/BACKEND_DEVELOPMENT_PLAN.md §5.2 for the full plan
-// (Part 2 adds TodoCollaborator, Part 3 adds deadline/reminderSentAt + Notification).
+// Part 1 (Auth + Todos) + Part 2 (TodoCollaborator) schema. See
+// docs/BACKEND_DEVELOPMENT_PLAN.md §5.2/§6.2 for the full plan
+// (Part 3 adds deadline/reminderSentAt + Notification).
 
 generator client {
   provider = "prisma-client-js"
@@ -21,6 +22,7 @@ model User {
   todos              Todo[]                   @relation("OwnedTodos")
   verificationTokens EmailVerificationToken[]
   resetTokens        PasswordResetToken[]
+  collaboratingOn    TodoCollaborator[]
 }
 
 model EmailVerificationToken {
@@ -54,5 +56,17 @@ model Todo {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@index([ownerId])
+  collaborators TodoCollaborator[]
+}
+
+model TodoCollaborator {
+  id        Int      @id @default(autoincrement())
+  todoId    Int
+  todo      Todo     @relation(fields: [todoId], references: [id], onDelete: Cascade)
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  invitedBy Int
+  createdAt DateTime @default(now())
+
+  @@unique([todoId, userId])
 }

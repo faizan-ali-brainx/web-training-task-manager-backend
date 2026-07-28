@@ -1,8 +1,10 @@
 # Backend Development Plan — Task Manager API
 
-**Status:** **Part 1 (Auth + Todo APIs & database) is complete** and integrated end-to-end with
-the frontend — see §3 for full verification details and §2.7 for the frontend-integration status.
-Part 2 (Collaboration, §6) and Part 3 (Deadlines & Notifications, §7) are planned but not started.
+**Status:** **Part 1 (Auth + Todo APIs & database) and Part 2 (Collaboration) are complete** on
+the backend — see §3 for Part 1 verification and §6.5 for Part 2 verification. Frontend
+integration is done for Part 1 only (§2.7); the Part 2 frontend UI (invite/collaborator list/
+permission-aware editing) is not yet built. Part 3 (Deadlines & Notifications, §7) is planned but
+not started.
 
 **How to use this document:** This is meant to be a **self-sufficient brief** — everything an
 engineer or AI agent needs to build this backend correctly, without access to any prior chat
@@ -23,7 +25,7 @@ repos:
   TypeScript + Redux Toolkit app. **Built and now integrated with the real backend** for both auth
   and todos (Part 1) — no more mock API for either feature. See §2 below for everything about it.
 - **Backend** (this repo) — `faizan-ali-brainx/web-training-task-manager-backend`, a NestJS API.
-  **Part 1 implemented and verified**; Parts 2-3 are planned but not started.
+  **Parts 1-2 implemented and verified**; Part 3 is planned but not started.
 
 The backend work is split into **three parts**, to be built and PR'd in order:
 
@@ -312,9 +314,9 @@ backend/
 │   ├── users/                # UsersService + user.mapper (toPublicUser)
 │   ├── mail/                 # MailService (Nodemailer, catches send failures)
 │   ├── auth/                 # AuthModule — DTOs, JwtStrategy, JwtAuthGuard, CurrentUser, service, controller
-│   ├── todos/                 # TodosModule — DTOs, todo.mapper (ownerId -> userId), service, controller
+│   ├── todos/                 # TodosModule — DTOs, mappers, Todos + Collaborators services/controllers (Part 1 + Part 2)
 │   └── common/filters/       # AllExceptionsFilter
-├── prisma/schema.prisma      # Part 1 schema applied via one migration (`init`)
+├── prisma/schema.prisma      # Part 1 + Part 2 schema, migrations: `init`, `add_todo_collaborators`
 ├── docs/
 │   ├── PR_STANDARDS.md       # code-quality rules — read before every PR
 │   └── BACKEND_DEVELOPMENT_PLAN.md  # this file
@@ -330,7 +332,14 @@ someone else's todo → 404 on a missing todo → DTO validation (400) — all c
 is also fully integrated and verified end-to-end in the browser against this backend — see §2.7
 for the integration details, including one real bug it surfaced and fixed.
 
-**Next up: PRs for both repos (frontend + backend), then Part 2 — Collaboration** (see §6).
+**Part 2 status: complete (backend only).** `TodoCollaborator` model, `CollaboratorsController`/
+`CollaboratorsService` (invite/list/remove), and the owner-vs-collaborator split in `TodosService`
+are all built, unit-tested (14 new tests, 32 total passing), and manually verified end-to-end via
+curl with 3 real users — see §6.5 for the full verification list. The Part 2 frontend UI
+(invite button, collaborator list, permission-aware editing) is not built yet.
+
+**Next up: PRs for both repos (frontend Part 1 + backend Parts 1-2), then Part 3 — Deadlines &
+Notifications** (see §7).
 
 ---
 
@@ -595,15 +604,33 @@ since the allowed action depends on *which* fields are being changed.
 
 ### 6.5 Definition of Done — Part 2
 
-- [ ] `TodoCollaborator` model + migration
-- [ ] `CollaboratorsController`/`CollaboratorsService`: invite/list/remove, all DTO-validated
-- [ ] `TodosService` updated: `findAllForUser` includes collaborated todos; `update` splits
-      owner-only fields (`title`) from shared fields (`completed`)
-- [ ] `MailService.sendCollaboratorInvite` — notify the invited user by email
-- [ ] Swagger updated for new endpoints
-- [ ] Tests: owner can invite/remove, collaborator cannot; collaborator can toggle `completed` but
-      not rename/delete; duplicate invite returns 409
-- [ ] README + `.env.example` updated if anything new was added
+- [x] `TodoCollaborator` model + migration (`add_todo_collaborators`)
+- [x] `CollaboratorsController`/`CollaboratorsService`: invite/list/remove, all DTO-validated
+      (`InviteCollaboratorDto`, email-based)
+- [x] `TodosService` updated: `findAllForUser` includes collaborated todos (`OR` on
+      `ownerId`/`collaborators.some.userId`); `update` splits owner-only fields (`title`) from
+      shared fields (`completed`) via `assertIsOwner`/`assertCanAccess`, reused by
+      `CollaboratorsService` too
+- [x] `MailService.sendCollaboratorInvite` — notify the invited user by email (send failures are
+      logged, not thrown, same as Part 1's verify/reset emails)
+- [x] Swagger updated for new endpoints (`@ApiTags('collaborators')`, `@ApiBearerAuth`,
+      `@ApiOperation` on invite/list/remove)
+- [x] Tests: 14 new tests across `todos.service.spec.ts` (updated),
+      `collaborators.service.spec.ts`, `collaborators.controller.spec.ts` — owner can invite/
+      remove, collaborator cannot; collaborator can toggle `completed` but not rename/delete;
+      duplicate invite returns 409; unrelated third user gets 403 (32 tests total, all passing)
+- [x] README updated: new Collaborators endpoints table, and the Todos `PATCH /:id` row corrected to
+      reflect the owner-vs-collaborator field split. No new env vars, so `.env.example` is unchanged.
+- [x] Manually verified end-to-end via curl against the real Postgres database with 3 real users
+      (owner, invited collaborator, unrelated stranger): 403 on collaborators-list before invite →
+      403 non-owner invite → 201 invite → 409 duplicate invite → 404 invite-unknown-email → 200
+      collaborator can now list collaborators and sees the shared todo in `GET /todos` → 200
+      collaborator toggles `completed` → 403 collaborator renames title → 403 collaborator
+      deletes → 403 collaborator removes another collaborator → 403 stranger has no access at all
+      → 204 owner removes the collaborator → todo disappears from the ex-collaborator's `GET
+      /todos` → 404 removing an already-removed collaborator → 200 owner still fully controls the
+      todo (rename succeeds). Cross-checked the final state directly in Postgres (`TodoCollaborator`
+      table empty, `Todo` row shows the owner's rename and the collaborator's completed-toggle).
 - [ ] Frontend follow-up flagged (not built here): invite UI, collaborator list, permission-aware
       editing
 

@@ -1,11 +1,18 @@
 import { Module } from '@nestjs/common';
+import { MailModule } from '../mail/mail.module';
+import { UsersModule } from '../users/users.module';
+import { CollaboratorsController } from './collaborators.controller';
+import { CollaboratorsService } from './collaborators.service';
 import { TodosController } from './todos.controller';
 import { TodosService } from './todos.service';
 
-/** Todo CRUD — JwtAuthGuard works here without importing AuthModule, since
- * Passport's 'jwt' strategy is registered globally once AuthModule loads. */
+/** Todo CRUD + collaboration — JwtAuthGuard works here without importing
+ * AuthModule, since Passport's 'jwt' strategy is registered globally once
+ * AuthModule loads. UsersModule/MailModule are needed for invite-by-email
+ * lookups and the collaborator-invite notification. */
 @Module({
-  controllers: [TodosController],
-  providers: [TodosService],
+  imports: [UsersModule, MailModule],
+  controllers: [TodosController, CollaboratorsController],
+  providers: [TodosService, CollaboratorsService],
 })
 export class TodosModule {}
