@@ -5,6 +5,10 @@ coverage
 .env
 .env.local
 .DS_Store
+*.tsbuildinfo
+prisma.config.js
+prisma.config.js.map
+prisma.config.d.ts
 
 /generated/prisma
 

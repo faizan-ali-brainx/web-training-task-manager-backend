@@ -46,8 +46,12 @@ See [docs/BACKEND_DEVELOPMENT_PLAN.md](docs/BACKEND_DEVELOPMENT_PLAN.md) (§3, "
 
 ## API Endpoints
 
-All routes are served under `/api`. Interactive docs (Swagger, with a "Authorize" button for
+All routes are served under `/api/v1`. Interactive docs (Swagger, with a "Authorize" button for
 Bearer tokens) are available at `/api-docs` once the server is running.
+
+Every response is wrapped in a consistent envelope: `{ success: true, data, message }` on success
+(a 204 No Content response is left bodyless, as required by the HTTP spec), or
+`{ success: false, message }` on error. The tables below show the shape of `data` on success.
 
 **Auth** (`/api/auth`)
 

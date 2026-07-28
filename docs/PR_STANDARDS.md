@@ -79,3 +79,71 @@ not the Mongoose examples in the original files.
 10. New modules/endpoints/env vars are mentioned in `README.md`.
 11. PR touches **one feature**. If it grew into two, split it.
 12. PR title + description cover what/why/how (see `best_practices.md` §1 for the template).
+13. Every response returns through `ResponseInterceptor`/`AllExceptionsFilter` — don't hand-roll a
+    response shape in a controller (see "Project-Specific Conventions" below).
+14. Every new `@@relation` foreign-key column in `schema.prisma` has an `@@index` — Postgres does
+    not auto-index these.
+15. Any DTO/service accepting an email does its lookup/comparison through `UsersService`
+    (case-normalized), never a raw `where: { email }` elsewhere.
+16. Magic numbers/durations used more than once (TTLs, salt rounds, limits) live in a
+    `*.constants.ts` file, not inline in the service.
+17. Every `MailService`/other best-effort external call is wrapped in try/catch at its call site,
+    even if the callee also catches internally.
+18. HTML emails render from a `.hbs` file under `mail/templates/`, never an inline template
+    literal.
+19. All routes are versioned under `/api/v1` (`app.setGlobalPrefix('api/v1')` in `main.ts`) — never
+    add a route outside the versioned prefix.
+
+## Project-Specific Conventions (from senior-engineer PR review)
+
+These came out of a real review of this repo's first PR (see
+[BACKEND_DEVELOPMENT_PLAN.md §9.1](BACKEND_DEVELOPMENT_PLAN.md) for the full changelog) and are
+now hard requirements, not suggestions.
+
+**Unified response envelope.** Every controller returns its plain resource/DTO — `ResponseInterceptor`
+(registered globally in `main.ts`) wraps it before it reaches the client:
+```json
+// success
+{ "success": true, "data": { "...": "..." }, "message": "..." }
+// error (thrown by AllExceptionsFilter)
+{ "success": false, "message": "..." }
+```
+A controller method returning `{ message, ...rest }` gets `message` hoisted to the envelope's own
+`message` field automatically — don't nest a `message` field inside `data` yourself. A `204 No
+Content` response (e.g. `DELETE`) is left bodyless; the interceptor detects this and skips wrapping.
+
+**Prisma foreign-key indexes.** Postgres does not automatically index a foreign-key column the way
+some other databases do. Every scalar field used in a `@relation(fields: [...])` needs an explicit
+`@@index([thatField])` on the model, e.g.:
+```prisma
+model Todo {
+  ownerId Int
+  owner   User @relation(fields: [ownerId], references: [id])
+
+  @@index([ownerId])
+}
+```
+
+**Case-insensitive emails.** Postgres `TEXT`/`VARCHAR` equality is case-sensitive, so `User@x.com`
+and `user@x.com` would otherwise slip past a `@unique` constraint as two different rows. Every
+email read or write goes through `UsersService`, which normalizes (`.trim().toLowerCase()`) before
+touching Prisma — never query `prisma.user` by email directly from another service.
+
+**Constants live in their own file.** A value reused more than once in a service (token TTLs,
+bcrypt salt rounds, pagination limits, etc.) belongs in a co-located `*.constants.ts` file
+(e.g. `auth.constants.ts`), imported where needed — not a `const` declared at the top of the
+service file.
+
+**Defense-in-depth on email sends.** `MailService` already catches its own send failures and logs
+instead of throwing (so a broken SMTP server never fails the calling request). Callers (e.g.
+`AuthService`) must *also* wrap each send call in their own try/catch — never assume the callee's
+contract will hold forever.
+
+**HTML emails use Handlebars templates.** Compile `.hbs` files from `mail/templates/` (see
+`MailService.compile`/`.render`) instead of building HTML with template literals inline. New
+templates must be added to `nest-cli.json`'s `compilerOptions.assets` glob so they're copied into
+`dist/` on build.
+
+**API versioning.** The global prefix is `api/v1`, set once in `main.ts`
+(`app.setGlobalPrefix('api/v1')`). Any breaking change to a response shape or route should bump
+this to `v2` rather than silently changing `v1`'s contract.

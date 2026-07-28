@@ -97,8 +97,15 @@ already used — so every page's `catch (err) { setFormError((err as Error).mess
 identically, with no special-casing needed.
 
 **Implications for the backend:**
-- Default expected base URL: `http://localhost:3000/api` in dev — so this API must set a global
-  prefix of `api` and listen on port `3000` by default.
+- Default expected base URL: `http://localhost:3000/api/v1` in dev — so this API must set a global
+  prefix of `api/v1` and listen on port `3000` by default. **Post-review update:** the prefix was
+  originally `api` (unversioned) for Part 1; a senior-engineer PR review asked for API versioning,
+  so it's now `api/v1` — see §9's PR-review changelog. This means the code snippets below (quoting
+  the frontend's `config.ts`/`.env.example` as they stood during Part 1) are now stale on this one
+  point — the frontend's `API_BASE_URL` default needs to change to `.../api/v1` to match.
+- Every response is wrapped in a consistent envelope — `{ success: true, data, message }` on
+  success, `{ success: false, message }` on error (also a post-review addition; see §9). A `204 No
+  Content` response is left bodyless, since that status must carry no body.
 - Every authenticated request arrives as `Authorization: Bearer <token>`.
 - A `401` response is meaningful to the frontend (it clears the stored token) — return `401`
   specifically for "not authenticated / invalid token," not for authorization failures (use `403`
@@ -477,7 +484,10 @@ rename during integration — either is fine, document whichever is chosen).
 
 ### 5.3 API Endpoints — Part 1
 
-All under `/api`. Endpoints marked 🔒 require `@UseGuards(AuthGuard('jwt'))`.
+All under `/api/v1`. Endpoints marked 🔒 require `@UseGuards(AuthGuard('jwt'))`. **Post-review**:
+every response below is now wrapped in the standard envelope (§9's PR-review changelog) — the
+"Success" column shows the shape of the envelope's `data` field (with any `message` property
+hoisted to the envelope's own top-level `message` instead), not the raw response body.
 
 | Method | Path | Body | Success | Notes |
 |---|---|---|---|---|
@@ -724,3 +734,35 @@ likely to bite during this build:
 - **Tests required** — a service without a `*.spec.ts` is an incomplete PR.
 - **One feature per PR** — ship Part 1 as several small PRs (e.g. Prisma+Auth, then Todos, then
   Swagger/docs polish) rather than one giant PR.
+
+### 9.1 PR-review changelog (Part 1)
+
+A senior backend engineer reviewed the initial Part 1 PR and left 7 comments. Every one of them is
+now also encoded as a standing rule in [PR_STANDARDS.md](PR_STANDARDS.md) so it isn't repeated in
+future work — this list is just the historical record of what changed and why:
+
+1. **Unified response envelope** — every response is now `{ success: true, data, message }` on
+   success or `{ success: false, message }` on error (204 stays bodyless). See
+   `common/interceptors/response.interceptor.ts` and `common/filters/all-exceptions.filter.ts`.
+   **Breaking change for the frontend** — `res.data` is no longer the raw payload, it's the
+   envelope; the frontend's API layer needs a matching update (not done as part of this backend
+   change).
+2. **Foreign-key indexes** — `@@index` added on every FK scalar column (`EmailVerificationToken`,
+   `PasswordResetToken`, `Todo`) — Postgres doesn't auto-index these the way some other databases
+   do.
+3. **Case-insensitive emails** — `UsersService.findByEmail`/`create` normalize to lowercase/trim
+   before every read and write, so `User@x.com` and `user@x.com` can't become two accounts.
+4. **Constants extracted** — `TOKEN_TTL_MS`/`BCRYPT_SALT_ROUNDS` moved out of `AuthService` into
+   `auth.constants.ts`.
+5. **Defense-in-depth on email sends** — `AuthService` now wraps every `MailService` call in its
+   own try/catch (`trySendEmail`), on top of `MailService`'s own internal catch.
+6. **Handlebars templates** — verification/reset emails render from `.hbs` files under
+   `mail/templates/`, not inline template-literal HTML.
+7. **API versioning** — global prefix changed from `api` to `api/v1`. **Breaking change for the
+   frontend** — its `API_BASE_URL` default needs to change to match (not done as part of this
+   backend change).
+
+Fixing this also surfaced one unrelated latent bug: `tsconfig.json` had no `rootDir`, so `nest
+build` emitted to `dist/src/main.js` while `package.json`'s `start:prod` script ran `node
+dist/main` — production start has been silently broken since Part 1. Fixed by setting
+`"rootDir": "./src"`.

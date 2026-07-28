@@ -4,6 +4,7 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Logger,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -13,6 +14,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { toPublicUser, type PublicUser } from '../users/user.mapper';
 import { UsersService } from '../users/users.service';
 import { MailService } from '../mail/mail.service';
+import { BCRYPT_SALT_ROUNDS, TOKEN_TTL_MS } from './auth.constants';
 import type { AuthResponseDto } from './dto/auth-response.dto';
 import type { ForgotPasswordDto } from './dto/forgot-password.dto';
 import type { LoginDto } from './dto/login.dto';
@@ -21,8 +23,6 @@ import type { ResetPasswordDto } from './dto/reset-password.dto';
 import type { SignupDto } from './dto/signup.dto';
 import type { VerifyEmailDto } from './dto/verify-email.dto';
 
-const TOKEN_TTL_MS = 60 * 60 * 1000; // 1 hour
-
 /**
  * Orchestrates the full auth flow: signup, email verification, login,
  * logout, session lookup, and forgot/reset password. Mirrors the frontend's
@@ -30,6 +30,8 @@ const TOKEN_TTL_MS = 60 * 60 * 1000; // 1 hour
  */
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly users: UsersService,
@@ -43,7 +45,7 @@ export class AuthService {
     if (existing)
       throw new ConflictException('An account with this email already exists');
 
-    const passwordHash = await bcrypt.hash(dto.password, 10);
+    const passwordHash = await bcrypt.hash(dto.password, BCRYPT_SALT_ROUNDS);
     const user = await this.users.create({
       name: dto.name,
       email: dto.email,
@@ -51,7 +53,9 @@ export class AuthService {
     });
 
     const token = await this.createEmailVerificationToken(user.id);
-    await this.mail.sendVerificationEmail(user.email, token);
+    await this.trySendEmail(() =>
+      this.mail.sendVerificationEmail(user.email, token),
+    );
 
     return {
       message: 'Account created — check your email to verify.',
@@ -108,7 +112,9 @@ export class AuthService {
       throw new BadRequestException('No account found with this email');
 
     const token = await this.createPasswordResetToken(user.id);
-    await this.mail.sendPasswordResetEmail(user.email, token);
+    await this.trySendEmail(() =>
+      this.mail.sendPasswordResetEmail(user.email, token),
+    );
 
     return {
       message: 'A password reset link would be sent to your email.',
@@ -124,7 +130,7 @@ export class AuthService {
       throw new BadRequestException('Invalid or expired reset link');
     }
 
-    const passwordHash = await bcrypt.hash(dto.newPassword, 10);
+    const passwordHash = await bcrypt.hash(dto.newPassword, BCRYPT_SALT_ROUNDS);
     await this.users.updatePassword(record.userId, passwordHash);
     await this.prisma.passwordResetToken.delete({ where: { id: record.id } });
 
@@ -151,5 +157,20 @@ export class AuthService {
   // docs/BACKEND_DEVELOPMENT_PLAN.md §5.1 for why.
   private devOnly<T extends object>(fields: T): Partial<T> {
     return this.config.get<string>('NODE_ENV') === 'production' ? {} : fields;
+  }
+
+  /**
+   * Runs an email send, swallowing any failure so a broken/unreachable SMTP
+   * server never fails the signup/forgot-password request itself. MailService
+   * already catches internally — this is a defensive second layer at the
+   * call site, in case that contract ever changes.
+   * @param send - a thunk performing the actual send
+   */
+  private async trySendEmail(send: () => Promise<void>): Promise<void> {
+    try {
+      await send();
+    } catch (err) {
+      this.logger.warn(`Email send failed: ${(err as Error).message}`);
+    }
   }
 }
