@@ -47,6 +47,17 @@ export class MailService {
     );
   }
 
+  async sendCollaboratorInvite(
+    toEmail: string,
+    todoTitle: string,
+  ): Promise<void> {
+    await this.send(
+      toEmail,
+      'You were invited to collaborate on a task',
+      `<p>You've been added as a collaborator on "${todoTitle}". Log in to view it.</p>`,
+    );
+  }
+
   private async send(to: string, subject: string, html: string): Promise<void> {
     try {
       await this.transporter.sendMail({

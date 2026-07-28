@@ -61,14 +61,22 @@ Bearer tokens) are available at `/api-docs` once the server is running.
 | POST | `/forgot-password` | — | 404 if no account with that email |
 | POST | `/reset-password` | — | 400 if token invalid/expired |
 
-**Todos** (`/api/todos`) — all routes 🔒, scoped to the authenticated user
+**Todos** (`/api/todos`) — all routes 🔒, scoped to the authenticated user (owned + collaborated-on)
 
 | Method | Path | Notes |
 |---|---|---|
-| GET | `/` | List the current user's todos |
+| GET | `/` | Lists todos owned by, or shared with, the current user |
 | POST | `/` | Create a todo (`{ title }`) |
-| PATCH | `/:id` | Partial update (`{ title?, completed? }`) — 404 missing, 403 not owner |
+| PATCH | `/:id` | Partial update (`{ title?, completed? }`) — `title` is owner-only (403 otherwise); `completed` is owner-or-collaborator; 404 if missing |
 | DELETE | `/:id` | 204 on success — 404 missing, 403 not owner |
+
+**Collaborators** (`/api/todos/:todoId/collaborators`) — all routes 🔒
+
+| Method | Path | Notes |
+|---|---|---|
+| POST | `/` | Invite a user by email (`{ email }`) — owner only; 404 no such user, 409 already a collaborator, 403 not owner |
+| GET | `/` | List collaborators — owner or collaborator; 403 no access |
+| DELETE | `/:userId` | Remove a collaborator — owner only; 404 not a collaborator, 403 not owner |
 
 ## Project setup
 
