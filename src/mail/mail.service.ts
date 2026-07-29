@@ -5,7 +5,11 @@ import { ConfigService } from '@nestjs/config';
 import * as handlebars from 'handlebars';
 import * as nodemailer from 'nodemailer';
 
-type TemplateName = 'verify-email' | 'reset-password' | 'collaborator-invite';
+type TemplateName =
+  | 'verify-email'
+  | 'reset-password'
+  | 'collaborator-invite'
+  | 'deadline-reminder';
 
 /**
  * Sends transactional emails via SMTP (Nodemailer), rendered from Handlebars
@@ -72,6 +76,21 @@ export class MailService {
   ): Promise<void> {
     const html = this.render('collaborator-invite', { todoTitle });
     await this.send(toEmail, 'You were invited to collaborate on a task', html);
+  }
+
+  /**
+   * Notifies a user that one of their tasks is approaching its deadline.
+   * @param toEmail - the recipient's email address
+   * @param todoTitle - the title of the task that's due
+   * @param deadline - the human-readable deadline (e.g. a locale date string)
+   */
+  async sendDeadlineReminder(
+    toEmail: string,
+    todoTitle: string,
+    deadline: string,
+  ): Promise<void> {
+    const html = this.render('deadline-reminder', { todoTitle, deadline });
+    await this.send(toEmail, `Reminder: "${todoTitle}" is due soon`, html);
   }
 
   /**

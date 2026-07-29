@@ -1,6 +1,6 @@
-// Part 1 (Auth + Todos) + Part 2 (TodoCollaborator) schema. See
-// docs/BACKEND_DEVELOPMENT_PLAN.md §5.2/§6.2 for the full plan
-// (Part 3 adds deadline/reminderSentAt + Notification).
+// Part 1 (Auth + Todos) + Part 2 (TodoCollaborator) + Part 3 (deadlines &
+// notifications) schema. See docs/BACKEND_DEVELOPMENT_PLAN.md §5.2/§6.2/§7.2
+// for the full plan.
 
 generator client {
   provider = "prisma-client-js"
@@ -23,6 +23,7 @@ model User {
   verificationTokens EmailVerificationToken[]
   resetTokens        PasswordResetToken[]
   collaboratingOn    TodoCollaborator[]
+  notifications      Notification[]
 }
 
 model EmailVerificationToken {
@@ -48,15 +49,20 @@ model PasswordResetToken {
 }
 
 model Todo {
-  id        Int      @id @default(autoincrement())
-  title     String
-  completed Boolean  @default(false)
-  ownerId   Int
-  owner     User     @relation("OwnedTodos", fields: [ownerId], references: [id], onDelete: Cascade)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id             Int       @id @default(autoincrement())
+  title          String
+  completed      Boolean   @default(false)
+  ownerId        Int
+  owner          User      @relation("OwnedTodos", fields: [ownerId], references: [id], onDelete: Cascade)
+  deadline       DateTime?
+  reminderSentAt DateTime? // set once the pre-deadline reminder has fired, to avoid duplicates
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   collaborators TodoCollaborator[]
+  notifications Notification[]
+
+  @@index([ownerId])
 }
 
 model TodoCollaborator {
@@ -69,4 +75,26 @@ model TodoCollaborator {
   createdAt DateTime @default(now())
 
   @@unique([todoId, userId])
+  @@index([userId])
+}
+
+enum NotificationType {
+  DEADLINE_REMINDER
+  COLLABORATOR_INVITED
+  TASK_UPDATED
+}
+
+model Notification {
+  id        Int              @id @default(autoincrement())
+  userId    Int // recipient
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  todoId    Int?
+  todo      Todo?            @relation(fields: [todoId], references: [id], onDelete: Cascade)
+  type      NotificationType
+  message   String
+  read      Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  @@index([userId])
+  @@index([todoId])
 }

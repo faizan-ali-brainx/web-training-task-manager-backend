@@ -58,6 +58,7 @@ describe('TodosService', () => {
           userId: 5,
           title: 'A',
           completed: false,
+          deadline: null,
           createdAt: '2026-01-01T00:00:00.000Z',
         },
       ]);

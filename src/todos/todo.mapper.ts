@@ -5,6 +5,7 @@ export interface PublicTodo {
   userId: number;
   title: string;
   completed: boolean;
+  deadline: string | null;
   createdAt: string;
 }
 
@@ -20,6 +21,7 @@ export function toPublicTodo(todo: PrismaTodo): PublicTodo {
     userId: todo.ownerId,
     title: todo.title,
     completed: todo.completed,
+    deadline: todo.deadline ? todo.deadline.toISOString() : null,
     createdAt: todo.createdAt.toISOString(),
   };
 }

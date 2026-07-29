@@ -3,7 +3,9 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { NotificationType } from '@prisma/client';
 import { MailService } from '../mail/mail.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { toPublicUser, type PublicUser } from '../users/user.mapper';
 import { UsersService } from '../users/users.service';
@@ -25,6 +27,7 @@ export class CollaboratorsService {
     private readonly todos: TodosService,
     private readonly users: UsersService,
     private readonly mail: MailService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   /**
@@ -61,6 +64,12 @@ export class CollaboratorsService {
     });
 
     await this.mail.sendCollaboratorInvite(invitee.email, todo.title);
+    await this.notifications.create({
+      userId: invitee.id,
+      todoId,
+      type: NotificationType.COLLABORATOR_INVITED,
+      message: `You were added as a collaborator on "${todo.title}"`,
+    });
     return toPublicCollaborator(collaborator);
   }
 
