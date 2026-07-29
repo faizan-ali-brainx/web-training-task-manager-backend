@@ -1,9 +1,10 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import type { Todo as PrismaTodo } from '@prisma/client';
+import { Prisma, type Todo as PrismaTodo } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateTodoDto } from './dto/create-todo.dto';
 import { UpdateTodoDto } from './dto/update-todo.dto';
@@ -48,14 +49,15 @@ export class TodosService {
   }
 
   /**
-   * Partially updates a todo. Renaming (`title`) is owner-only; toggling
-   * `completed` is open to the owner or any collaborator.
+   * Partially updates a todo. Editing `title`/`deadline` is owner-only;
+   * toggling `completed` is open to the owner or any collaborator.
    * @param userId - the requesting user's id
    * @param id - the todo's id
    * @param dto - the fields to update
    * @returns the updated todo
    * @throws NotFoundException if the todo doesn't exist
    * @throws ForbiddenException if the caller isn't allowed to make this change
+   * @throws BadRequestException if a supplied deadline isn't in the future
    */
   async update(
     userId: number,
@@ -63,13 +65,67 @@ export class TodosService {
     dto: UpdateTodoDto,
   ): Promise<PublicTodo> {
     const todo = await this.findTodoOrThrow(id);
-    if (dto.title !== undefined) {
+    await this.assertMayUpdate(todo, userId, dto);
+    const updated = await this.prisma.todo.update({
+      where: { id },
+      data: this.buildUpdateData(dto),
+    });
+    return toPublicTodo(updated);
+  }
+
+  /**
+   * Authorizes an update: `title`/`deadline` changes are owner-only, a
+   * `completed`-only change is allowed for owners and collaborators alike.
+   * @param todo - the todo being updated
+   * @param userId - the requesting user's id
+   * @param dto - the fields being changed
+   * @throws ForbiddenException if the caller isn't allowed to make this change
+   */
+  private async assertMayUpdate(
+    todo: PrismaTodo,
+    userId: number,
+    dto: UpdateTodoDto,
+  ): Promise<void> {
+    const ownerOnly = dto.title !== undefined || dto.deadline !== undefined;
+    if (ownerOnly) {
       this.assertIsOwner(todo, userId);
     } else {
       await this.assertCanAccess(todo, userId);
     }
-    const updated = await this.prisma.todo.update({ where: { id }, data: dto });
-    return toPublicTodo(updated);
+  }
+
+  /**
+   * Builds the Prisma update payload from the DTO. Changing the deadline
+   * re-arms the reminder (clears `reminderSentAt`) so the new date gets its
+   * own reminder.
+   * @param dto - the fields being changed
+   * @returns the Prisma update input
+   */
+  private buildUpdateData(dto: UpdateTodoDto): Prisma.TodoUpdateInput {
+    const data: Prisma.TodoUpdateInput = {};
+    if (dto.title !== undefined) data.title = dto.title;
+    if (dto.completed !== undefined) data.completed = dto.completed;
+    if (dto.deadline !== undefined) {
+      data.deadline = this.parseDeadline(dto.deadline);
+      data.reminderSentAt = null;
+    }
+    return data;
+  }
+
+  /**
+   * Validates a deadline value: `null` clears it, otherwise it must parse to a
+   * future date.
+   * @param deadline - the ISO date-time string, or null to clear
+   * @returns the parsed Date, or null
+   * @throws BadRequestException if the date isn't in the future
+   */
+  private parseDeadline(deadline: string | null): Date | null {
+    if (deadline === null) return null;
+    const date = new Date(deadline);
+    if (date.getTime() <= Date.now()) {
+      throw new BadRequestException('Deadline must be in the future');
+    }
+    return date;
   }
 
   /**

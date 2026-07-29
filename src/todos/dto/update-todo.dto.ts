@@ -1,5 +1,12 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsBoolean, IsOptional, MaxLength, MinLength } from 'class-validator';
+import {
+  IsBoolean,
+  IsDateString,
+  IsOptional,
+  MaxLength,
+  MinLength,
+  ValidateIf,
+} from 'class-validator';
 
 /** Request body for PATCH /todos/:id — every field is optional (partial update). */
 export class UpdateTodoDto {
@@ -13,4 +20,16 @@ export class UpdateTodoDto {
   @IsOptional()
   @IsBoolean()
   completed?: boolean;
+
+  @ApiPropertyOptional({
+    type: String,
+    format: 'date-time',
+    nullable: true,
+    description:
+      'ISO-8601 date-time; must be in the future. Pass null to clear the deadline. Owner-only.',
+  })
+  @IsOptional()
+  @ValidateIf((o: UpdateTodoDto) => o.deadline !== null)
+  @IsDateString()
+  deadline?: string | null;
 }

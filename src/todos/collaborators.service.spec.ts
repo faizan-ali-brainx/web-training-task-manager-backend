@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { MailService } from '../mail/mail.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { UsersService } from '../users/users.service';
 import { CollaboratorsService } from './collaborators.service';
@@ -16,6 +17,7 @@ describe('CollaboratorsService', () => {
   let todos: Record<string, jest.Mock>;
   let users: Record<string, jest.Mock>;
   let mail: Record<string, jest.Mock>;
+  let notifications: Record<string, jest.Mock>;
 
   const ownedTodo = { id: 1, title: 'Shared task', ownerId: 1 };
 
@@ -35,6 +37,7 @@ describe('CollaboratorsService', () => {
     };
     users = { findByEmail: jest.fn() };
     mail = { sendCollaboratorInvite: jest.fn() };
+    notifications = { create: jest.fn() };
 
     const module = await Test.createTestingModule({
       providers: [
@@ -43,6 +46,7 @@ describe('CollaboratorsService', () => {
         { provide: TodosService, useValue: todos },
         { provide: UsersService, useValue: users },
         { provide: MailService, useValue: mail },
+        { provide: NotificationsService, useValue: notifications },
       ],
     }).compile();
 
@@ -111,6 +115,13 @@ describe('CollaboratorsService', () => {
       expect(mail.sendCollaboratorInvite).toHaveBeenCalledWith(
         'friend@example.com',
         'Shared task',
+      );
+      expect(notifications.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: 2,
+          todoId: 1,
+          type: 'COLLABORATOR_INVITED',
+        }),
       );
       expect(result.user.email).toBe('friend@example.com');
     });

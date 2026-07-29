@@ -25,9 +25,23 @@ async function bootstrap() {
 
   const swaggerConfig = new DocumentBuilder()
     .setTitle('Task Manager API')
-    .setDescription('API for the Task Manager application')
+    .setDescription(
+      [
+        'REST API for the Task Manager app (auth, todos, collaboration, and deadlines & notifications).',
+        '',
+        '**All routes are under `/api/v1`.** Protected routes need an `Authorization: Bearer <token>` header — use the **Authorize** button with a token from `POST /auth/login`.',
+        '',
+        '**Response envelope:** every success response is wrapped as `{ success: true, data, message }` and every error as `{ success: false, message }` (a `204 No Content` has no body). The schemas below describe the `data` field.',
+        '',
+        '**Real-time:** notifications are also pushed over a Socket.io connection on this same origin — connect with `io(origin, { auth: { token } })` and listen for the `notification` event (payload = a Notification). Not represented in this HTTP spec.',
+      ].join('\n'),
+    )
     .setVersion('1.0')
     .addBearerAuth()
+    .addTag('auth', 'Signup, email verification, login/logout, password reset')
+    .addTag('todos', 'Todo CRUD, ownership-enforced, with per-todo deadlines')
+    .addTag('collaborators', 'Invite / list / remove collaborators on a todo')
+    .addTag('notifications', 'In-app notifications (list + mark read)')
     .build();
   SwaggerModule.setup(
     'api-docs',

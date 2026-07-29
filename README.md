@@ -1,33 +1,71 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Task Manager API (NestJS)
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+The backend for the Task Manager training project — a NestJS + Prisma + PostgreSQL REST API with
+JWT auth, real-time notifications, and a deadline-reminder cron. It's the server the
+[`frontend/`](../frontend) React app talks to.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+Feature coverage:
 
-## Description
+- **Auth** — signup, email verification, login/logout, `GET /me` session rehydration, forgot/reset
+  password. JWT (Passport) + bcrypt.
+- **Todos** — full CRUD, ownership-enforced, all routes JWT-guarded.
+- **Collaboration** — invite/list/remove collaborators on a todo by email; owner-only mutations,
+  owner-or-collaborator reads/completed-toggles.
+- **Deadlines & notifications** — per-todo deadline, an hourly cron that emails + notifies before a
+  deadline, and a Socket.io gateway that pushes notifications in real time.
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+For the full design (schema, endpoint spec, decisions across all three parts) see
+[docs/BACKEND_DEVELOPMENT_PLAN.md](docs/BACKEND_DEVELOPMENT_PLAN.md). Before opening a PR, check
+[docs/PR_STANDARDS.md](docs/PR_STANDARDS.md).
 
-See [docs/BACKEND_DEVELOPMENT_PLAN.md](docs/BACKEND_DEVELOPMENT_PLAN.md) for the full development plan — frontend contract, tech stack, database schema, and endpoint spec across all 3 build phases (Auth+Todos, Collaboration, Deadlines+Notifications).
+## Tech Stack
 
-Before writing code or opening a PR, check [docs/PR_STANDARDS.md](docs/PR_STANDARDS.md) — a condensed, one-file reference for this repo's code standards and PR review checklist.
+| Concern | Choice |
+|---|---|
+| Framework | NestJS 11 |
+| Language | TypeScript (strict, no `any`) |
+| Database | PostgreSQL + Prisma 7 (with `@prisma/adapter-pg`) |
+| Auth | JWT (`@nestjs/jwt` + Passport `passport-jwt`), bcrypt |
+| Validation | DTOs + `class-validator`, global `ValidationPipe` |
+| Email | Nodemailer (verification/reset/invite/deadline emails) |
+| Real-time | `@nestjs/websockets` + Socket.io |
+| Scheduling | `@nestjs/schedule` (deadline-reminder cron) |
+| Docs | `@nestjs/swagger` at `/api-docs` |
+
+## Prerequisites
+
+- **Node.js 20+** (`node -v`).
+- **PostgreSQL 15+** running locally. This project expects a dedicated instance on **port 5433** —
+  see [docs/BACKEND_DEVELOPMENT_PLAN.md §3 "Local development database"](docs/BACKEND_DEVELOPMENT_PLAN.md)
+  for the exact one-time `initdb`/`pg_ctl`/`createdb` steps. In short:
+
+  ```bash
+  export PATH="/opt/homebrew/opt/postgresql@15/bin:$PATH"
+  pg_ctl -D /opt/homebrew/var/task-manager-postgres-data -o "-p 5433" \
+    -l /opt/homebrew/var/task-manager-postgres-data/server.log start
+  ```
+
+- An SMTP inbox for outgoing mail. A sandbox like [Mailtrap](https://mailtrap.io) is ideal — email
+  sends are best-effort (failures are logged, not thrown), and in development the API also returns
+  verification/reset tokens in the response, so email isn't strictly required to test auth.
+
+## Local Setup
+
+```bash
+npm install                 # install dependencies
+cp .env.example .env         # then fill in the values below
+npx prisma migrate dev       # apply migrations (also generates the Prisma client)
+npm run start:dev            # start the API on http://localhost:3000 (watch mode)
+```
+
+Once running:
+
+- REST API: `http://localhost:3000/api/v1/...`
+- Swagger UI: `http://localhost:3000/api-docs` (click **Authorize** and paste a token from
+  `POST /auth/login` to call protected routes)
+
+> **If `start:dev` compiles "0 errors" but crashes with `Cannot find module dist/main`:** a stale
+> build cache emitted no JS. Clear it and restart: `rm -f *.tsbuildinfo && rm -rf dist`.
 
 ## Environment Variables
 
@@ -37,23 +75,22 @@ Copy `.env.example` to `.env` and fill in real values locally (never commit `.en
 |---|---|
 | `NODE_ENV` | `development` locally — gates whether `/auth/signup` and `/auth/forgot-password` include the raw token in their response (see docs plan §5.1) |
 | `PORT` | HTTP port (default `3000`) |
-| `FRONTEND_URL` | Allowed CORS origin, e.g. `http://localhost:5173` |
-| `DATABASE_URL` | Postgres connection string |
-| `JWT_SECRET` / `JWT_EXPIRES_IN` | JWT signing secret and access-token lifetime |
+| `FRONTEND_URL` | Allowed CORS origin (HTTP + WebSocket), e.g. `http://localhost:5173` |
+| `DATABASE_URL` | Postgres connection string, e.g. `postgresql://postgres@localhost:5433/task_manager_dev?schema=public` |
+| `JWT_SECRET` / `JWT_EXPIRES_IN` | JWT signing secret and access-token lifetime (e.g. `1h`) |
 | `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` | Nodemailer SMTP config — leave blank locally to skip real email sending (send failures are logged, not thrown) |
-
-See [docs/BACKEND_DEVELOPMENT_PLAN.md](docs/BACKEND_DEVELOPMENT_PLAN.md) (§3, "Local development database") for how to set up a local Postgres instance from scratch.
+| `DEADLINE_REMINDER_WINDOW_HOURS` | How many hours ahead the deadline-reminder cron looks for due tasks (default `24`) |
 
 ## API Endpoints
 
-All routes are served under `/api/v1`. Interactive docs (Swagger, with a "Authorize" button for
-Bearer tokens) are available at `/api-docs` once the server is running.
+All routes are served under `/api/v1`. Interactive docs (Swagger, with an **Authorize** button for
+Bearer tokens) are at `/api-docs` once the server is running.
 
 Every response is wrapped in a consistent envelope: `{ success: true, data, message }` on success
 (a 204 No Content response is left bodyless, as required by the HTTP spec), or
 `{ success: false, message }` on error. The tables below show the shape of `data` on success.
 
-**Auth** (`/api/auth`)
+**Auth** (`/api/v1/auth`)
 
 | Method | Path | Auth | Notes |
 |---|---|---|---|
@@ -65,91 +102,52 @@ Every response is wrapped in a consistent envelope: `{ success: true, data, mess
 | POST | `/forgot-password` | — | 404 if no account with that email |
 | POST | `/reset-password` | — | 400 if token invalid/expired |
 
-**Todos** (`/api/todos`) — all routes 🔒, scoped to the authenticated user (owned + collaborated-on)
+**Todos** (`/api/v1/todos`) — all routes 🔒, scoped to the authenticated user (owned + collaborated-on)
 
 | Method | Path | Notes |
 |---|---|---|
 | GET | `/` | Lists todos owned by, or shared with, the current user |
 | POST | `/` | Create a todo (`{ title }`) |
-| PATCH | `/:id` | Partial update (`{ title?, completed? }`) — `title` is owner-only (403 otherwise); `completed` is owner-or-collaborator; 404 if missing |
+| PATCH | `/:id` | Partial update (`{ title?, completed?, deadline? }`) — `title`/`deadline` are owner-only (403 otherwise); `completed` is owner-or-collaborator; `deadline` is a future ISO date-time (or `null` to clear) and changing it re-arms the reminder; 404 if missing |
 | DELETE | `/:id` | 204 on success — 404 missing, 403 not owner |
 
-**Collaborators** (`/api/todos/:todoId/collaborators`) — all routes 🔒
+**Collaborators** (`/api/v1/todos/:todoId/collaborators`) — all routes 🔒
 
 | Method | Path | Notes |
 |---|---|---|
-| POST | `/` | Invite a user by email (`{ email }`) — owner only; 404 no such user, 409 already a collaborator, 403 not owner |
+| POST | `/` | Invite a user by email (`{ email }`) — owner only; 404 no such user, 409 already a collaborator, 403 not owner. Also raises a real-time `COLLABORATOR_INVITED` notification for the invitee |
 | GET | `/` | List collaborators — owner or collaborator; 403 no access |
 | DELETE | `/:userId` | Remove a collaborator — owner only; 404 not a collaborator, 403 not owner |
 
-## Project setup
+**Notifications** (`/api/v1/notifications`) — all routes 🔒, scoped to the authenticated recipient
 
-```bash
-$ npm install
-```
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/` | List the current user's notifications, newest first |
+| PATCH | `/:id/read` | Mark a notification read — 404 if missing, 403 if it belongs to someone else |
 
-## Compile and run the project
+**Real-time notifications (WebSocket).** A Socket.io server runs on the same origin/port as the
+API. The client connects with `io(API_ORIGIN, { auth: { token } })` (the JWT access token) — the
+gateway verifies it on connection and joins the socket to a private `user:<id>` room, then emits a
+`notification` event (payload = the same shape as `GET /notifications` rows) whenever a
+notification is raised for that user. A deadline-reminder cron (`DEADLINE_REMINDER_WINDOW_HOURS`,
+default 24h) also emails + notifies the owner and collaborators of any task due within the window,
+once per task.
 
-```bash
-# development
-$ npm run start
+## Scripts
 
-# watch mode
-$ npm run start:dev
+| Command | Description |
+|---|---|
+| `npm run start:dev` | Start in watch mode (development) |
+| `npm run start:prod` | Run the compiled build (`dist/main.js`) |
+| `npm run build` | Compile to `dist/` |
+| `npm run lint` | ESLint (with `--fix`) |
+| `npm test` | Unit + integration tests (Jest) |
+| `npm run test:e2e` | End-to-end tests |
+| `npx prisma migrate dev` | Apply/create migrations and regenerate the client |
+| `npx prisma studio` | Browse the database in a GUI |
 
-# production mode
-$ npm run start:prod
-```
+## Testing
 
-## Run tests
-
-```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
-```
-
-## Deployment
-
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
-
-```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
-```
-
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
-
-## Resources
-
-Check out a few resources that may come in handy when working with NestJS:
-
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+Unit tests live beside their services/controllers as `*.spec.ts`; run them with `npm test`. See
+[docs/PR_STANDARDS.md](docs/PR_STANDARDS.md) for the testing bar every PR is held to.

@@ -7,7 +7,14 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiCreatedResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { CurrentUser } from './current-user.decorator';
 import { AuthResponseDto } from './dto/auth-response.dto';
@@ -19,6 +26,7 @@ import { SignupDto } from './dto/signup.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import type { RequestUser } from './jwt.strategy';
+import { UserResponseDto } from '../users/dto/user-response.dto';
 import type { PublicUser } from '../users/user.mapper';
 
 /** Auth endpoints — signup, email verification, login/logout, forgot/reset password. */
@@ -31,6 +39,8 @@ export class AuthController {
   @ApiOperation({
     summary: 'Register a new account and send a verification email',
   })
+  @ApiCreatedResponse({ type: MessageResponseDto })
+  @ApiResponse({ status: 409, description: 'Email already registered' })
   signup(@Body() dto: SignupDto): Promise<MessageResponseDto> {
     return this.auth.signup(dto);
   }
@@ -41,6 +51,8 @@ export class AuthController {
     summary:
       'Verify an email address using the token from the verification email',
   })
+  @ApiOkResponse({ type: MessageResponseDto })
+  @ApiResponse({ status: 400, description: 'Invalid or expired token' })
   verifyEmail(@Body() dto: VerifyEmailDto): Promise<MessageResponseDto> {
     return this.auth.verifyEmail(dto);
   }
@@ -48,6 +60,9 @@ export class AuthController {
   @Post('login')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Log in and receive a JWT access token' })
+  @ApiOkResponse({ type: AuthResponseDto })
+  @ApiResponse({ status: 401, description: 'Invalid credentials' })
+  @ApiResponse({ status: 403, description: 'Email not verified' })
   login(@Body() dto: LoginDto): Promise<AuthResponseDto> {
     return this.auth.login(dto);
   }
@@ -57,6 +72,7 @@ export class AuthController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Log out the current session' })
+  @ApiOkResponse({ type: MessageResponseDto })
   logout(): MessageResponseDto {
     return this.auth.logout();
   }
@@ -65,6 +81,7 @@ export class AuthController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: "Get the current authenticated user's profile" })
+  @ApiOkResponse({ type: UserResponseDto })
   me(@CurrentUser() user: RequestUser): Promise<PublicUser> {
     return this.auth.getCurrentUser(user.userId);
   }
@@ -72,6 +89,8 @@ export class AuthController {
   @Post('forgot-password')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Request a password reset email' })
+  @ApiOkResponse({ type: MessageResponseDto })
+  @ApiResponse({ status: 404, description: 'No account with that email' })
   forgotPassword(@Body() dto: ForgotPasswordDto): Promise<MessageResponseDto> {
     return this.auth.forgotPassword(dto);
   }
@@ -81,6 +100,8 @@ export class AuthController {
   @ApiOperation({
     summary: 'Reset a password using the token from the reset email',
   })
+  @ApiOkResponse({ type: MessageResponseDto })
+  @ApiResponse({ status: 400, description: 'Invalid or expired token' })
   resetPassword(@Body() dto: ResetPasswordDto): Promise<MessageResponseDto> {
     return this.auth.resetPassword(dto);
   }

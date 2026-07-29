@@ -1,10 +1,12 @@
 # Backend Development Plan — Task Manager API
 
-**Status:** **Part 1 (Auth + Todo APIs & database) and Part 2 (Collaboration) are complete** on
-the backend — see §3 for Part 1 verification and §6.5 for Part 2 verification. Frontend
-integration is done for Part 1 only (§2.7); the Part 2 frontend UI (invite/collaborator list/
-permission-aware editing) is not yet built. Part 3 (Deadlines & Notifications, §7) is planned but
-not started.
+**Status:** **Parts 1, 2, and 3 are all implemented** on the backend. Part 1 (Auth + Todos) and
+Part 2 (Collaboration) are complete and verified (§3, §6.5). Part 3 (Deadlines & Notifications, §7)
+is complete — schema/migration, `NotificationsModule` (service, controller, Socket.io gateway),
+the deadline-reminder cron, and the deadline field on todos are all built, unit-/integration-tested
+(41 tests passing), compile/lint clean, and manually verified end-to-end (deadline email + real-time
+notifications confirmed working). Frontend integration is done for all three parts (Part 3 adds the
+notifications bell + deadline picker). Swagger and both READMEs have been finalized for submission.
 
 **How to use this document:** This is meant to be a **self-sufficient brief** — everything an
 engineer or AI agent needs to build this backend correctly, without access to any prior chat
@@ -708,16 +710,26 @@ by `CollaboratorsService` when someone is invited.
 
 ### 7.6 Definition of Done — Part 3
 
-- [ ] `deadline`/`reminderSentAt` columns + `Notification` model + migration
-- [ ] `NotificationsModule`: controller, service, gateway
-- [ ] `DeadlineReminderService` cron job, deduped via `reminderSentAt`
-- [ ] `MailService.sendDeadlineReminder`
-- [ ] Gateway manually verifies JWT on connection (documented exception to Guard-based auth)
-- [ ] Tests: cron job only reminds once per todo; notification list scoped to the recipient;
-      marking another user's notification as read returns 403
-- [ ] README + `.env.example` updated (`DEADLINE_REMINDER_WINDOW_HOURS`, etc.)
-- [ ] Frontend follow-up flagged (not built here): notifications UI, `socket.io-client` wiring,
-      deadline picker on the todo form
+- [x] `deadline`/`reminderSentAt` columns + `Notification` model + migration
+      (`add_deadlines_notifications`)
+- [x] `NotificationsModule`: controller (`GET /notifications`, `PATCH /:id/read`), service, and
+      Socket.io gateway (per-user `user:<id>` rooms)
+- [x] `DeadlineReminderService` cron job (`@Cron(EVERY_HOUR)`), deduped via `reminderSentAt`
+      (re-armed when a todo's deadline changes, in `TodosService.update`)
+- [x] `MailService.sendDeadlineReminder` + `deadline-reminder.hbs` template
+- [x] Gateway manually verifies JWT on connection from `handshake.auth.token` (documented
+      exception to Guard-based auth — see `NotificationsGateway`)
+- [x] `PATCH /todos/:id` accepts `deadline` (owner-only, future-date-validated, `null` clears it);
+      invite raises a `COLLABORATOR_INVITED` notification
+- [x] README + `.env.example` updated (`DEADLINE_REMINDER_WINDOW_HOURS`, notifications endpoints,
+      WebSocket note)
+- [x] Tests for the new Part 3 services: `notifications.service.spec.ts` (create pushes via the
+      gateway; list; mark-read 404/403/success), `deadline-reminder.service.spec.ts` (reminds owner
+      + collaborators once per todo; no-op when nothing due), `notifications.controller.spec.ts`
+      (delegation + guard). 41 tests total, all passing; existing Part 1/2 specs kept green
+      (collaborator-invite now also asserts the notification is raised)
+- [x] Frontend built alongside (not deferred this time): notifications UI + `socket.io-client`
+      wiring + deadline picker on the todo form
 
 ---
 
